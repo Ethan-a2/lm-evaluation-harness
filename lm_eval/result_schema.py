@@ -107,7 +107,7 @@ EvalResults = TypedDict(
 )
 
 
-class _TaskMetrics(TypedDict, Generic[T], extra_items=T):
+class _TaskMetrics(TypedDict, Generic[T], total=False):
     """Per-task metric dict passed through evaluation and display.
 
     Fixed keys are ``name``, ``alias`` and ``sample_len``.  The remaining keys are
@@ -160,7 +160,7 @@ class _EvalConfig(TypedDict, total=False):
     fewshot_seed: int
 
 
-class SampleResult(TypedDict, extra_items=float):
+class SampleResult(TypedDict, total=False):
     """Per-document result written to ``samples_*.jsonl`` when ``log_samples=True``.
 
     There is one entry per filter (e.g. ``"none"``, ``"strict-match"``).

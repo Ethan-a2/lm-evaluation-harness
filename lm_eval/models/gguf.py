@@ -14,21 +14,35 @@ logger = logging.getLogger(__name__)
 
 def get_result(logprobs, context_length):
     is_greedy = True
-    offsets = logprobs["text_offset"]
-    tokens = logprobs["tokens"]
-    tokens_logprobs = logprobs["token_logprobs"]
+    content = logprobs.get("content")
+    if content:
+        tokens_logprobs = [item["logprob"] for item in content]
+        tokens = [item["token"] for item in content]
+        top_logprobs = [item.get("top_logprobs", []) for item in content]
+        offsets = list(range(len(tokens)))
+    else:
+        offsets = logprobs["text_offset"]
+        tokens = logprobs["tokens"]
+        tokens_logprobs = logprobs["token_logprobs"]
+        top_logprobs = logprobs["top_logprobs"]
 
     idx = 0
-    while offsets[idx] < context_length:
+    while idx < len(offsets) and offsets[idx] < context_length:
         idx += 1
     continuation_logprobs = sum(tokens_logprobs[idx:-1])
     for i in range(idx, len(tokens)):
         token = tokens[i]
-        top_tokens = logprobs["top_logprobs"][i]
-        top_token = max(top_tokens.keys(), key=lambda x: top_tokens[x])
-        if top_token != token:
-            is_greedy = False
-            break
+        if top_logprobs and i < len(top_logprobs):
+            top_tokens = top_logprobs[i]
+            if isinstance(top_tokens, list):
+                top_token = max(
+                    top_tokens, key=lambda x: x.get("logprob", float("-inf"))
+                ).get("token", "")
+            else:
+                top_token = max(top_tokens.keys(), key=lambda x: top_tokens[x])
+            if top_token != token:
+                is_greedy = False
+                break
 
     return continuation_logprobs, is_greedy
 
@@ -85,14 +99,14 @@ class GGUFLM(LM):
                 logprobs = choice.get("logprobs")
                 if (
                     logprobs
-                    and "token_logprobs" in logprobs
-                    and logprobs["token_logprobs"]
+                    and ("token_logprobs" in logprobs or "content" in logprobs)
+                    and (logprobs.get("token_logprobs") or logprobs.get("content"))
                 ):
                     logprob, is_greedy = get_result(logprobs, len(context))
                     res.append((logprob, is_greedy))
                 else:
                     logger.warning(
-                        "Invalid logprobs data. Expected 'logprobs' to contain 'token_logprobs' list."
+                        "Invalid logprobs data. Expected 'logprobs' to contain 'token_logprobs' or 'content' list."
                     )
             else:
                 logger.error(
